@@ -1,0 +1,86 @@
+import numpy as np
+import pandas as pd
+from sklearn.datasets import make_regression
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import KFold, cross_val_score
+
+df= pd.read_csv('/arquivos-atividades/cloud.csv')
+
+X = df.drop(columns=["Target"])
+y = df["Target"]
+
+lr = LinearRegression()
+
+r2_scores = []
+
+for seed in range(10):
+  kf = KFold(n_splits=5, shuffle=True, random_state=seed)
+  scores = cross_val_score(lr, X, y, cv=kf, scoring="r2")
+  r2_scores.extend(scores)
+
+  r2_mean = np.mean(r2_scores)
+
+  from sklearn.linear_model import Lasso
+
+  lasso = Lasso(alpha=1)
+  lasso.fit(X, y)
+  coef_lasso = lasso.coef_
+  num_zero = sum(coef == 0)
+  print(f"Atributos com coeficientes zerados: {num_zero}", coef_lasso)
+
+  lr.fit(X, y)
+  coef_regress = lr.coef_
+
+  coef_comparison = pd.DataFrame({
+      "Atributo": X.columns,
+      "Coef_LinearRegression": coef_regress,
+      "Coef_Lasso": coef_lasso
+  })
+
+  from sklearn.model_selection import train_test_split
+  from sklearn.linear_model import Ridge
+  from sklearn.metrics import mean_squared_error
+
+  X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+  # Modelos
+  lr = LinearRegression()
+  lasso = Lasso(alpha=1)
+  ridge = Ridge(alpha=1)
+
+  # Treinando os modelos
+  lr.fit(X_train, y_train)
+  lasso.fit(X_train, y_train)
+  ridge.fit(X_train, y_train)
+
+#Fazendo as prediçoes
+y_pred_lr = lr.predict(X_test)
+y_pred_lasso = lasso.predict(X_test)
+y_pred_ridge = ridge.predict(X_test)
+
+#Calculando RMSE (indica o quão distante, em média, estão as previsões dos valores reais, na mesma unidade da variável)
+
+rmse_lr = np.sqrt(mean_squared_error(y_test, y_pred_lr))
+rmse_lasso = np.sqrt(mean_squared_error(y_test, y_pred_lasso))
+rmse_ridge = np.sqrt(mean_squared_error(y_test, y_pred_ridge))
+
+# Resultados
+rmse_results = pd.DataFrame({
+    "Modelo": ["Linear Regression", "Lasso (α=1)", "Ridge (α=1)"],
+    "RMSE": [rmse_lr, rmse_lasso, rmse_ridge]
+})
+
+rmse_results
+
+#Leave-one-out calcule o valor do erro médio absoluto (MAE)
+from sklearn.model_selection import LeaveOneOut
+from sklearn.metrics import mean_absolute_error
+
+loo = LeaveOneOut()
+mae_scores_lr = cross_val_score(lr, X, y, cv=loo, scoring="neg_mean_absolute_error")
+
+#Como cross_val_score com neg_mean_absolute_error retorna valores negativos,
+#tomamos o valor absoluto e, em seguida, a média para obter o MAE positivo.
+mae_lr = -mae_scores_lr.mean()
+
+print(f"Mean Absolute Error (MAE) for Linear Regression using Leave-One-Out: {mae_lr}")
